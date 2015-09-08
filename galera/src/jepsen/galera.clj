@@ -22,9 +22,11 @@
             [honeysql [core :as sql]
                       [helpers :as h]]))
 
+; jepsen.cnf to get it saved as well
 (def log-files
   ["/var/log/mysql/error.log"
-   "/var/lib/mysql/queries.log"])
+   "/var/lib/mysql/queries.log"
+   "/etc/mysql/conf.d/jepsen.cnf"])
 
 (def dir "/var/lib/mysql")
 (def stock-dir "/var/lib/mysql-stock")
@@ -44,6 +46,10 @@
     (c/exec :echo "mysql-wsrep-5.6 mysql-server-5.1/start_on_boot boolean false" | :debconf-set-selections)
 
     (debian/install [:rsync])
+
+    (when (debian/installed? :mariadb-galera-server)
+      (c/exec :apt-get :remove :-y :mariadb-galera-server :galera-3)
+      (c/exec :rm :-rf :/var/lib/mysql))
 
     (when-not (debian/installed? :galera-3)
       (info node "Installing galera-3")
@@ -189,7 +195,7 @@
            (with-error-handling ~op
              (with-txn-retries
                (j/with-db-transaction [~c (conn-spec ~node)
-                                       :isolation :serializable]
+                                       :isolation :repeatable-read]
                  ~@body)))))
 
 (defn basic-test
@@ -371,7 +377,7 @@
   [version n initial-balance]
   (basic-test
     {:name "bank"
-     :concurrency 20
+     :concurrency 30
      :version version
      :model  {:n n :total (* n initial-balance)}
      :client (bank-client n initial-balance)
