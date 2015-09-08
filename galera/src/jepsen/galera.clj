@@ -23,9 +23,7 @@
                       [helpers :as h]]))
 
 (def log-files
-  ["/var/log/syslog"
-   "/var/log/mysql.log"
-   "/var/log/mysql.err"
+  ["/var/log/mysql/error.log"
    "/var/lib/mysql/queries.log"])
 
 (def dir "/var/lib/mysql")
@@ -36,25 +34,26 @@
   [node version]
   (debian/add-repo!
     :galera
-    "deb http://sfo1.mirrors.digitalocean.com/mariadb/repo/10.0/debian jessie main"
+    "deb http://repos.galeracluster.com/testing/debian jessie main"
     "keyserver.ubuntu.com"
-    "0xcbcb082a1bb943db")
+    "0xd669017ebc19ddba")
 
   (c/su
-    (c/exec :echo "mariadb-galera-server-10.0 mysql-server/root_password password jepsen" | :debconf-set-selections)
-    (c/exec :echo "mariadb-galera-server-10.0 mysql-server/root_password_again password jepsen" | :debconf-set-selections)
-    (c/exec :echo "mariadb-galera-server-10.0 mysql-server-5.1/start_on_boot boolean false" | :debconf-set-selections)
+    (c/exec :echo "mysql-wsrep-5.6 mysql-server/root_password password jepsen" | :debconf-set-selections)
+    (c/exec :echo "mysql-wsrep-5.6 mysql-server/root_password_again password jepsen" | :debconf-set-selections)
+    (c/exec :echo "mysql-wsrep-5.6 mysql-server-5.1/start_on_boot boolean false" | :debconf-set-selections)
 
     (debian/install [:rsync])
 
-    (when-not (debian/installed? :mariadb-galera-server)
-      (info node "Installing galera")
-      (debian/install [:mariadb-galera-server])
+    (when-not (debian/installed? :galera-3)
+      (info node "Installing galera-3")
+      (debian/install [:galera-3]))
 
-      (c/exec :service :mysql :stop)
-      ; Squirrel away a copy of the data files
-      (c/exec :rm :-rf stock-dir)
-      (c/exec :cp :-rp dir stock-dir))))
+
+    (when-not (debian/installed? :mysql-wsrep-5.6)
+      (info node "Installing mysql-wsrep-5.6")
+      (debian/install [:mysql-wsrep-5.6])
+      (c/exec :service :mysql :stop))))
 
 (defn cluster-address
   "Connection string for a test."
@@ -76,7 +75,7 @@
   "Stops sql daemon."
   [node]
   (info node "stopping mysqld")
-  (meh (cu/grepkill "mysqld")))
+  (c/su (c/exec :service :mysql :stop)))
 
 (defn eval!
   "Evals a mysql string from the command line."
@@ -104,14 +103,19 @@
   [version]
   (reify db/DB
     (setup! [_ test node]
+      (info node "Setting up node")
       (install! node version)
       (configure! test node)
 
       (when (= node (jepsen/primary test))
-        (c/su (c/exec :service :mysql :start :--wsrep-new-cluster)))
+        (c/su (c/exec :service :mysql :start :--wsrep-new-cluster))
+        (info node "Started"))
+
+
 
       (jepsen/synchronize test)
       (when (not= node (jepsen/primary test))
+        (info node "Started")
         (c/su (c/exec :service :mysql :start)))
 
       (jepsen/synchronize test)
@@ -123,9 +127,7 @@
     (teardown! [_ test node]
       (c/su
         (stop! node)
-        (apply c/exec :truncate :-c :--size 0 log-files))
-        (c/exec :rm :-rf dir)
-        (c/exec :cp :-rp stock-dir dir))
+        (apply c/exec :truncate :-c :--size 0 log-files)))
 
     db/LogFiles
     (log-files [_ test node] log-files)))

@@ -38,7 +38,7 @@
 (defn maybe-update!
   "Apt-get update if we haven't done so recently."
   []
-  (when (< 86400 (time-since-last-update))
+  (when (< 86400 0)
     (update!)))
 
 (defn installed
