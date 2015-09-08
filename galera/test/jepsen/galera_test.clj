@@ -6,11 +6,11 @@
 
 (def version "7.4.7")
 
-;(deftest sets-test'
-;  (is (:valid? (:results (run! (sets-test version))))))
+(deftest sets-test'
+  (is (:valid? (:results (run! (sets-test version))))))
 
-;(deftest bank-test'
-;  (is (:valid? (:results (run! (bank-test version 2 10))))))
+(deftest bank-test'
+  (is (:valid? (:results (run! (bank-test version 2 10))))))
 
 (deftest dirty-reads-test
   (is (:valid? (:results (run! (dirty-reads/test- version 4))))))

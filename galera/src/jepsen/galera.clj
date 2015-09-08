@@ -94,7 +94,8 @@
 (defn setup-db!
   "Adds a jepsen database to the cluster."
   [node]
-  (eval! "create database if not exists jepsen;")
+  (eval! "drop database if exists jepsen;")
+  (eval! "create database jepsen;")
   (eval! (str "GRANT ALL PRIVILEGES ON jepsen.* "
               "TO 'jepsen'@'%' IDENTIFIED BY 'jepsen';")))
 
@@ -119,7 +120,10 @@
         (c/su (c/exec :service :mysql :start)))
 
       (jepsen/synchronize test)
-      (setup-db! node)
+
+      ; Start with clean db
+      (when (= node (jepsen/primary test))
+        (setup-db! node))
 
       (info node "Install complete")
       (Thread/sleep 5000))

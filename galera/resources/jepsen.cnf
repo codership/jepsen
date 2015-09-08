@@ -12,3 +12,4 @@ wsrep_provider=/usr/lib/galera/libgalera_smm.so
 wsrep_cluster_name="jepsen"
 wsrep_cluster_address="%CLUSTER_ADDRESS%"
 wsrep_sst_method=rsync
+wsrep_sync_wait=0
